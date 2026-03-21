@@ -19,17 +19,26 @@ let query = '';
 let page = 1;
 let totalHits = 0;
 
+const perPage = 15; // 🔴 фікс магічного числа
+
 form.addEventListener('submit', handleSubmit);
 loadMoreBtn.addEventListener('click', loadMoreImages);
 
-async function handleSubmit(event) {
-  event.preventDefault();
+// 🔍 Пошук
+async function handleSubmit(e) {
+  e.preventDefault();
 
-  query = event.target.elements.search.value.trim();
+  query = e.target.elements['search-text'].value.trim();
 
-  if (!query) return;
+  if (!query) {
+    iziToast.warning({
+      message: 'Please enter a search word!',
+    });
+    return;
+  }
 
   page = 1;
+  totalHits = 0;
 
   clearGallery();
   hideLoadMoreButton();
@@ -38,30 +47,41 @@ async function handleSubmit(event) {
   try {
     const data = await getImagesByQuery(query, page);
 
+    totalHits = data.totalHits;
+
     if (data.hits.length === 0) {
       iziToast.error({
-        message: 'Sorry, there are no images matching your search query.',
+        message:
+          'Sorry, there are no images matching your search query. Please try again!',
       });
       return;
     }
 
-    totalHits = data.totalHits;
-
     createGallery(data.hits);
 
-    if (totalHits > 15) {
+    const totalPages = Math.ceil(totalHits / perPage);
+
+    if (totalPages === 1) {
+      hideLoadMoreButton();
+
+      iziToast.info({
+        message: "We're sorry, but you've reached the end of search results.",
+      });
+    } else {
       showLoadMoreButton();
     }
   } catch (error) {
     iziToast.error({
-      message: 'Something went wrong!',
+      message: 'Something went wrong. Please try again!',
     });
   } finally {
     hideLoader();
   }
 }
 
+// ➕ Load More
 async function loadMoreImages() {
+  hideLoadMoreButton(); // 🔴 ховаємо кнопку під час запиту
   page += 1;
 
   showLoader();
@@ -71,7 +91,7 @@ async function loadMoreImages() {
 
     createGallery(data.hits);
 
-    const totalPages = Math.ceil(totalHits / 15);
+    const totalPages = Math.ceil(totalHits / perPage);
 
     if (page >= totalPages) {
       hideLoadMoreButton();
@@ -79,10 +99,22 @@ async function loadMoreImages() {
       iziToast.info({
         message: "We're sorry, but you've reached the end of search results.",
       });
+    } else {
+      showLoadMoreButton();
     }
+
+    // 🔴 автоскрол
+    const { height } = document
+      .querySelector('.gallery')
+      .firstElementChild.getBoundingClientRect();
+
+    window.scrollBy({
+      top: height * 2,
+      behavior: 'smooth',
+    });
   } catch (error) {
     iziToast.error({
-      message: 'Something went wrong!',
+      message: 'Something went wrong! Please try again.',
     });
   } finally {
     hideLoader();
